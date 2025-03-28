@@ -11,15 +11,14 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
-// Configurar sessões com express-session
 app.use(
   expressSession({
-    secret: 'seu-segredo-de-sessao',
+    secret: process.env.SESSION_SECRET || 'fallback-secret',
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false }, // Defina 'secure: true' se estiver usando HTTPS
+    cookie: { secure: process.env.NODE_ENV === 'production' } // HTTPS em produção
   })
-);
+)
 
 // Verificar conexão com o banco de dados
 (async () => {
