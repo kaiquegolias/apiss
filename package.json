@@ -1,5 +1,10 @@
 {
   "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.3",
     "bcrypt": "^5.1.1",
