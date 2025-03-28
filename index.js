@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import expressSession from 'express-session';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsDoc from 'swagger-jsdoc';
-import supabase from './supabase.js';
+import { supabase } from './supabase.js'
 
 const app = express();
 app.use(express.json());
