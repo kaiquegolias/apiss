@@ -1,0 +1,13 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.3",
+    "bcrypt": "^5.1.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "jsonwebtoken": "^9.0.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  }
+}
