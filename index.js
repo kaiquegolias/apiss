@@ -11,9 +11,7 @@ import { supabase } from './supabase.js';
 const app = express();
 const PgSession = connectPgSimple(expressSession);
 
-// =============================================
-// 1. CONFIGURAÇÃO INICIAL (MIDDLEWARES)
-// =============================================
+// ====================== CONFIGURAÇÃO INICIAL ======================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -24,23 +22,21 @@ app.use(
     store: new PgSession({
       conString: process.env.SUPABASE_DB_URL,
       tableName: 'user_sessions',
-      createTableIfMissing: true,
+      createTableIfMissing: true
     }),
     secret: process.env.SESSION_SECRET || 'fallback-secret-dev',
     resave: false,
     saveUninitialized: false,
-    cookie: {
+    cookie: { 
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 dias
+      maxAge: 30 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      sameSite: 'lax',
-    },
+      sameSite: 'lax'
+    }
   })
 );
 
-// =============================================
-// 2. MIDDLEWARES DE AUTENTICAÇÃO
-// =============================================
+// ====================== MIDDLEWARES ======================
 const verificarAutenticacao = (req, res, next) => {
   const token = req.session.token || req.cookies.session_token;
   if (!token) return res.status(401).json({ error: 'Usuário não autenticado' });
@@ -61,41 +57,40 @@ const verificarSupervisor = (req, res, next) => {
   next();
 };
 
-// =============================================
-// 3. CONFIGURAÇÃO DO SWAGGER (DOCUMENTAÇÃO)
-// =============================================
+// ====================== SWAGGER ======================
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'API de Monitoramento de Operadores',
+      title: 'API de Monitoramento Completo',
       version: '1.0.0',
-      description: 'API para controle de horários e status de operadores',
+      description: 'API para gestão completa de operadores e supervisores'
     },
-    servers: [
-      {
-        url: process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}`,
-      },
-    ],
+    servers: [{ url: process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}` }],
     components: {
       securitySchemes: {
         sessionAuth: {
           type: 'apiKey',
           in: 'cookie',
-          name: 'connect.sid',
-        },
-      },
-    },
+          name: 'connect.sid'
+        }
+      }
+    }
   },
-  apis: ['./index.js'],
+  apis: ['./index.js']
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// =============================================
-// 4. ROTAS DE AUTENTICAÇÃO (ORIGINAIS)
-// =============================================
+// ====================== ROTAS DE AUTENTICAÇÃO ======================
+/**
+ * @swagger
+ * /auth/login-operador:
+ *   post:
+ *     tags: [Autenticação]
+ *     summary: Login para operadores
+ */
 app.post('/auth/login-operador', async (req, res) => {
   try {
     const { email, senha } = req.body;
@@ -105,14 +100,12 @@ app.post('/auth/login-operador', async (req, res) => {
       .eq('email', email)
       .single();
 
-    if (!user || error) {
-      return res.status(400).json({ error: 'Credenciais inválidas' });
+    if (!user || error || user.nivel_acesso !== 'operador') {
+      return res.status(400).json({ error: 'Credenciais inválidas para operador' });
     }
 
     const senhaValida = await bcrypt.compare(senha, user.senha);
-    if (!senhaValida) {
-      return res.status(400).json({ error: 'Credenciais inválidas' });
-    }
+    if (!senhaValida) return res.status(400).json({ error: 'Credenciais inválidas' });
 
     const token = jwt.sign(
       { userId: user.id, nivel_acesso: user.nivel_acesso },
@@ -121,23 +114,30 @@ app.post('/auth/login-operador', async (req, res) => {
     );
 
     req.session.token = token;
-    res.cookie('session_token', token, {
+    res.cookie('session_token', token, { 
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 8 * 60 * 60 * 1000, // 8 horas
+      maxAge: 8 * 60 * 60 * 1000
     });
 
-    res.json({
+    res.json({ 
       message: 'Login de operador bem-sucedido',
       userId: user.id,
-      nivel_acesso: user.nivel_acesso,
+      nivel_acesso: user.nivel_acesso
     });
   } catch (error) {
     console.error('Erro no login:', error);
-    res.status(500).json({ error: 'Erro interno no servidor' });
+    res.status(500).json({ error: 'Erro interno' });
   }
 });
 
+/**
+ * @swagger
+ * /auth/login-supervisor:
+ *   post:
+ *     tags: [Autenticação]
+ *     summary: Login para supervisores
+ */
 app.post('/auth/login-supervisor', async (req, res) => {
   try {
     const { email, senha } = req.body;
@@ -152,9 +152,7 @@ app.post('/auth/login-supervisor', async (req, res) => {
     }
 
     const senhaValida = await bcrypt.compare(senha, user.senha);
-    if (!senhaValida) {
-      return res.status(400).json({ error: 'Credenciais inválidas' });
-    }
+    if (!senhaValida) return res.status(400).json({ error: 'Credenciais inválidas' });
 
     const token = jwt.sign(
       { userId: user.id, nivel_acesso: user.nivel_acesso },
@@ -163,43 +161,47 @@ app.post('/auth/login-supervisor', async (req, res) => {
     );
 
     req.session.token = token;
-    res.cookie('session_token', token, {
+    res.cookie('session_token', token, { 
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 8 * 60 * 60 * 1000, // 8 horas
+      maxAge: 8 * 60 * 60 * 1000
     });
 
-    res.json({
+    res.json({ 
       message: 'Login de supervisor bem-sucedido',
       userId: user.id,
-      nivel_acesso: user.nivel_acesso,
+      nivel_acesso: user.nivel_acesso
     });
   } catch (error) {
     console.error('Erro no login supervisor:', error);
-    res.status(500).json({ error: 'Erro interno no servidor' });
+    res.status(500).json({ error: 'Erro interno' });
   }
 });
 
-// =============================================
-// 5. ROTAS DE OPERADOR (ORIGINAIS + NOVAS)
-// =============================================
+// ====================== ROTAS DE OPERADOR ======================
+/**
+ * @swagger
+ * /operador/cadastrar:
+ *   post:
+ *     tags: [Supervisor]
+ *     summary: Cadastra novo operador
+ */
 app.post('/operador/cadastrar', verificarAutenticacao, verificarSupervisor, async (req, res) => {
   try {
     const { nome, email, senha } = req.body;
     const senhaHash = await bcrypt.hash(senha, 10);
 
-    // Verifica se o e-mail já existe
-    const { data: usuarioExistente, error: erroEmail } = await supabase
+    // Verifica se email já existe
+    const { data: usuarioExistente } = await supabase
       .from('usuarios')
       .select('id')
       .eq('email', email)
       .single();
 
     if (usuarioExistente) {
-      return res.status(400).json({ error: 'E-mail já cadastrado' });
+      return res.status(400).json({ error: 'Email já cadastrado' });
     }
 
-    // Cadastra o novo operador
     const { data: novoOperador, error } = await supabase
       .from('usuarios')
       .insert({
@@ -207,7 +209,7 @@ app.post('/operador/cadastrar', verificarAutenticacao, verificarSupervisor, asyn
         email,
         senha: senhaHash,
         nivel_acesso: 'operador',
-        supervisor_id: req.user.userId,
+        supervisor_id: req.user.userId
       })
       .select()
       .single();
@@ -215,14 +217,16 @@ app.post('/operador/cadastrar', verificarAutenticacao, verificarSupervisor, asyn
     if (error) throw error;
 
     // Cria registro inicial de monitoramento
-    await supabase.from('monitoramento').insert({
-      operador_id: novoOperador.id,
-      status_online: false,
-    });
+    await supabase
+      .from('monitoramento')
+      .insert({ 
+        operador_id: novoOperador.id,
+        status_online: false
+      });
 
-    res.status(201).json({
+    res.status(201).json({ 
       message: 'Operador cadastrado com sucesso',
-      operador_id: novoOperador.id,
+      operador_id: novoOperador.id
     });
   } catch (error) {
     console.error('Erro ao cadastrar operador:', error);
@@ -230,52 +234,62 @@ app.post('/operador/cadastrar', verificarAutenticacao, verificarSupervisor, asyn
   }
 });
 
+/**
+ * @swagger
+ * /operador/list:
+ *   get:
+ *     tags: [Supervisor]
+ *     summary: Lista operadores do supervisor
+ */
 app.get('/operador/list', verificarAutenticacao, verificarSupervisor, async (req, res) => {
   try {
     const { data: operadores, error } = await supabase
       .from('usuarios')
-      .select('id, nome, email, nivel_acesso')
+      .select(`
+        id,
+        nome,
+        email,
+        nivel_acesso,
+        monitoramento(
+          status_online
+        )
+      `)
       .eq('supervisor_id', req.user.userId);
 
     if (error) throw error;
 
-    res.status(200).json(operadores);
+    // Formata resposta incluindo status_online
+    const resposta = operadores.map(op => ({
+      id: op.id,
+      nome: op.nome,
+      email: op.email,
+      nivel_acesso: op.nivel_acesso,
+      online: op.monitoramento?.status_online || false
+    }));
+
+    res.status(200).json(resposta);
   } catch (error) {
     console.error('Erro ao listar operadores:', error);
     res.status(500).json({ error: 'Erro ao buscar operadores' });
   }
 });
 
-// =============================================
-// 6. ROTAS DE MONITORAMENTO (COMPLETO)
-// =============================================
+// ====================== ROTAS DE MONITORAMENTO ======================
 /**
  * @swagger
  * /monitoramento/registrar:
  *   post:
- *     tags: [Monitoramento]
- *     summary: Registra um evento de monitoramento
- *     security:
- *       - sessionAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               tipo:
- *                 type: string
- *                 enum: [entrada, saida, almoco_inicio, almoco_fim, ping]
- *     responses:
- *       200:
- *         description: Evento registrado com sucesso
+ *     tags: [Operador]
+ *     summary: Registra evento de monitoramento
  */
 app.post('/monitoramento/registrar', verificarAutenticacao, async (req, res) => {
   try {
     const { tipo } = req.body;
     const agora = new Date().toISOString();
-    const updateData = { operador_id: req.user.userId, ultima_atividade: agora };
+    let updateData = { 
+      operador_id: req.user.userId,
+      ultima_atividade: agora 
+    };
 
     switch (tipo) {
       case 'entrada':
@@ -305,13 +319,14 @@ app.post('/monitoramento/registrar', verificarAutenticacao, async (req, res) => 
 
     if (error) throw error;
 
-    res.status(200).json({
-      message: `Evento ${tipo} registrado com sucesso`,
+    res.status(200).json({ 
+      message: `Evento ${tipo} registrado`,
       horario: agora,
+      status: updateData.status_online
     });
   } catch (error) {
-    console.error('Erro ao registrar evento:', error);
-    res.status(500).json({ error: 'Erro ao registrar evento de monitoramento' });
+    console.error('Erro no registro:', error);
+    res.status(500).json({ error: 'Erro ao registrar evento' });
   }
 });
 
@@ -319,13 +334,8 @@ app.post('/monitoramento/registrar', verificarAutenticacao, async (req, res) => 
  * @swagger
  * /monitoramento/status:
  *   get:
- *     tags: [Monitoramento]
- *     summary: Obtém o status completo dos operadores
- *     security:
- *       - sessionAuth: []
- *     responses:
- *       200:
- *         description: Lista de status dos operadores
+ *     tags: [Supervisor]
+ *     summary: Retorna status completo dos operadores
  */
 app.get('/monitoramento/status', verificarAutenticacao, verificarSupervisor, async (req, res) => {
   try {
@@ -348,47 +358,55 @@ app.get('/monitoramento/status', verificarAutenticacao, verificarSupervisor, asy
 
     if (error) throw error;
 
-    const resposta = operadores.map((op) => ({
+    const resposta = operadores.map(op => ({
       id: op.id,
       nome: op.nome,
+      email: op.email,
       online: op.monitoramento?.status_online || false,
       horarios: {
         entrada: op.monitoramento?.horario_entrada || null,
         almoco: {
           inicio: op.monitoramento?.horario_almoco_inicio || null,
-          fim: op.monitoramento?.horario_almoco_fim || null,
+          fim: op.monitoramento?.horario_almoco_fim || null
         },
-        saida: op.monitoramento?.horario_saida || null,
+        saida: op.monitoramento?.horario_saida || null
       },
-      ultima_atividade: op.monitoramento?.ultima_atividade || null,
+      ultima_atividade: op.monitoramento?.ultima_atividade || null
     }));
 
     res.status(200).json(resposta);
   } catch (error) {
     console.error('Erro ao buscar status:', error);
-    res.status(500).json({ error: 'Erro ao buscar status de monitoramento' });
+    res.status(500).json({ error: 'Erro ao buscar dados de monitoramento' });
   }
 });
 
-// =============================================
-// 7. ROTAS ORIGINAIS DE MONITORAMENTO (MANTIDAS)
-// =============================================
+// ====================== ROTAS ORIGINAIS DE MONITORAMENTO ======================
+/**
+ * @swagger
+ * /monitoramento/{operadorId}:
+ *   get:
+ *     tags: [Supervisor]
+ *     summary: Verifica status de um operador
+ */
 app.get('/monitoramento/:operadorId', verificarAutenticacao, verificarSupervisor, async (req, res) => {
   try {
     const { operadorId } = req.params;
 
-    const { data: operador, error: operadorError } = await supabase
+    // Verifica se operador pertence ao supervisor
+    const { data: operador, error: opError } = await supabase
       .from('usuarios')
       .select('id, nome')
       .eq('id', operadorId)
       .eq('supervisor_id', req.user.userId)
       .single();
 
-    if (!operador || operadorError) {
+    if (!operador || opError) {
       return res.status(404).json({ error: 'Operador não encontrado' });
     }
 
-    const { data: monitoramento, error: monitoramentoError } = await supabase
+    // Busca status
+    const { data: monitoramento, error: monError } = await supabase
       .from('monitoramento')
       .select('*')
       .eq('operador_id', operadorId)
@@ -396,30 +414,45 @@ app.get('/monitoramento/:operadorId', verificarAutenticacao, verificarSupervisor
 
     res.status(200).json({
       operador,
-      status: monitoramento || { status_online: false },
+      status: monitoramento || { 
+        status_online: false,
+        horario_entrada: null,
+        horario_almoco_inicio: null,
+        horario_almoco_fim: null,
+        horario_saida: null
+      }
     });
   } catch (error) {
-    console.error('Erro ao buscar monitoramento:', error);
-    res.status(500).json({ error: 'Erro ao buscar dados de monitoramento' });
+    console.error('Erro no monitoramento:', error);
+    res.status(500).json({ error: 'Erro ao buscar status' });
   }
 });
 
+/**
+ * @swagger
+ * /monitoramento/{operadorId}/status:
+ *   put:
+ *     tags: [Supervisor]
+ *     summary: Atualiza status de um operador
+ */
 app.put('/monitoramento/:operadorId/status', verificarAutenticacao, verificarSupervisor, async (req, res) => {
   try {
     const { operadorId } = req.params;
     const { status_online } = req.body;
 
-    const { data: operador, error: operadorError } = await supabase
+    // Verifica se operador pertence ao supervisor
+    const { data: operador, error: opError } = await supabase
       .from('usuarios')
       .select('id')
       .eq('id', operadorId)
       .eq('supervisor_id', req.user.userId)
       .single();
 
-    if (!operador || operadorError) {
+    if (!operador || opError) {
       return res.status(404).json({ error: 'Operador não encontrado' });
     }
 
+    // Atualiza status
     const { error } = await supabase
       .from('monitoramento')
       .upsert(
@@ -429,10 +462,10 @@ app.put('/monitoramento/:operadorId/status', verificarAutenticacao, verificarSup
 
     if (error) throw error;
 
-    res.status(200).json({
-      message: 'Status atualizado com sucesso',
+    res.status(200).json({ 
+      message: 'Status atualizado',
       operador_id: operadorId,
-      status: status_online,
+      status: status_online
     });
   } catch (error) {
     console.error('Erro ao atualizar status:', error);
@@ -440,19 +473,25 @@ app.put('/monitoramento/:operadorId/status', verificarAutenticacao, verificarSup
   }
 });
 
-// =============================================
-// 8. HEALTH CHECK E INICIALIZAÇÃO
-// =============================================
+// ====================== HEALTH CHECK ======================
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     tags: [Health Check]
+ *     summary: Verifica status da API
+ */
 app.get('/health', (req, res) => {
-  res.status(200).json({
+  res.status(200).json({ 
     status: 'OK',
     environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString()
   });
 });
 
+// ====================== INICIALIZAÇÃO ======================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
-  console.log(`Documentação disponível em: http://localhost:${PORT}/docs`);
+  console.log(`Documentação: http://localhost:${PORT}/docs`);
 });
