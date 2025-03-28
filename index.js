@@ -82,19 +82,57 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: process.env.NODE_ENV === 'production' 
-          ? 'https://your-render-app.onrender.com' 
-          : 'http://localhost:3000'
+        url: process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}`,
+        description: process.env.NODE_ENV === 'production' ? 'Servidor de produção' : 'Servidor local'
       }
     ],
+    components: {
+      securitySchemes: {
+        cookieAuth: {
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'connect.sid'
+        }
+      }
+    }
   },
-  apis: ['index.js'],
+  apis: ['./index.js']
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// Rota de health check
+// Middleware para expor a especificação Swagger JSON
+app.get('/docs-json', (req, res) => {
+  res.json(swaggerDocs);
+});
+
+// Configuração da UI do Swagger
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs, {
+  explorer: true,
+  customSiteTitle: 'API de Monitoramento - Documentação'
+}));
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Verifica o status da API
+ *     tags: [Health Check]
+ *     responses:
+ *       200:
+ *         description: API está funcionando
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 database:
+ *                   type: string
+ *                 environment:
+ *                   type: string
+ */
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK',
@@ -103,7 +141,47 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Rotas de autenticação
+/**
+ * @swagger
+ * /auth/login-operador:
+ *   post:
+ *     summary: Login para operadores
+ *     tags: [Autenticação]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - senha
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: operador@empresa.com
+ *               senha:
+ *                 type: string
+ *                 example: senha123
+ *     responses:
+ *       200:
+ *         description: Login bem-sucedido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 nivel_acesso:
+ *                   type: string
+ *                 userId:
+ *                   type: string
+ *       400:
+ *         description: Credenciais inválidas
+ *       500:
+ *         description: Erro interno do servidor
+ */
 app.post('/auth/login-operador', async (req, res) => {
   try {
     const { email, senha } = req.body;
@@ -145,6 +223,49 @@ app.post('/auth/login-operador', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /auth/login-supervisor:
+ *   post:
+ *     summary: Login para supervisores
+ *     tags: [Autenticação]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - senha
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: supervisor@empresa.com
+ *               senha:
+ *                 type: string
+ *                 example: senha123
+ *     responses:
+ *       200:
+ *         description: Login bem-sucedido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 nivel_acesso:
+ *                   type: string
+ *                 userId:
+ *                   type: string
+ *       400:
+ *         description: Credenciais inválidas
+ *       403:
+ *         description: Acesso permitido apenas para supervisores
+ *       500:
+ *         description: Erro interno do servidor
+ */
 app.post('/auth/login-supervisor', async (req, res) => {
   try {
     const { email, senha } = req.body;
@@ -190,7 +311,39 @@ app.post('/auth/login-supervisor', async (req, res) => {
   }
 });
 
-// Rotas protegidas
+/**
+ * @swagger
+ * /operador/list:
+ *   get:
+ *     summary: Lista operadores associados ao supervisor
+ *     tags: [Supervisor]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de operadores
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   nome:
+ *                     type: string
+ *                   email:
+ *                     type: string
+ *                   nivel_acesso:
+ *                     type: string
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Acesso negado (não é supervisor)
+ *       500:
+ *         description: Erro interno do servidor
+ */
 app.get('/operador/list', verificarAutenticacao, verificarSupervisor, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -209,6 +362,53 @@ app.get('/operador/list', verificarAutenticacao, verificarSupervisor, async (req
   }
 });
 
+/**
+ * @swagger
+ * /monitoramento/{operadorId}:
+ *   get:
+ *     summary: Monitora status de um operador
+ *     tags: [Supervisor]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: operadorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do operador
+ *     responses:
+ *       200:
+ *         description: Dados de monitoramento
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 operador_id:
+ *                   type: string
+ *                 nome:
+ *                   type: string
+ *                 status_online:
+ *                   type: boolean
+ *                 horario_entrada:
+ *                   type: string
+ *                   nullable: true
+ *                 horario_almoco:
+ *                   type: string
+ *                   nullable: true
+ *                 horario_saida:
+ *                   type: string
+ *                   nullable: true
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Acesso negado (não é supervisor)
+ *       404:
+ *         description: Operador não encontrado
+ *       500:
+ *         description: Erro interno do servidor
+ */
 app.get('/monitoramento/:operadorId', verificarAutenticacao, verificarSupervisor, async (req, res) => {
   try {
     const { operadorId } = req.params;
@@ -256,6 +456,56 @@ app.get('/monitoramento/:operadorId', verificarAutenticacao, verificarSupervisor
   }
 });
 
+/**
+ * @swagger
+ * /monitoramento/{operadorId}/status:
+ *   put:
+ *     summary: Atualiza status de um operador
+ *     tags: [Supervisor]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: operadorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do operador
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status_online
+ *             properties:
+ *               status_online:
+ *                 type: boolean
+ *                 description: Novo status do operador
+ *     responses:
+ *       200:
+ *         description: Status atualizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 operador_id:
+ *                   type: string
+ *                 status:
+ *                   type: boolean
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Acesso negado (não é supervisor)
+ *       404:
+ *         description: Operador não encontrado
+ *       500:
+ *         description: Erro interno do servidor
+ */
 app.put('/monitoramento/:operadorId/status', verificarAutenticacao, verificarSupervisor, async (req, res) => {
   try {
     const { operadorId } = req.params;
@@ -325,5 +575,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Docs disponíveis em: http://localhost:${PORT}/docs`);
+  console.log(`Docs disponíveis em: ${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}/docs`);
 });
